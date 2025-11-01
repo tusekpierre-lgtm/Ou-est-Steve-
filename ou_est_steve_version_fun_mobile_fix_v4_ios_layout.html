@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+<meta charset="utf-8" />
+<title>Où est Steve ? – Mini‑jeu (édition rigolote, base d'origine)</title>
+<style>
+  :root{ --bg:#0f172a; --panel:#0b1220; --ink:#e5e7eb; --muted:#93a4b8; --accent:#22d3ee; --ok:#34d399; --warn:#f59e0b; --line:rgba(148,163,184,.25); }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0; background:radial-gradient(1200px 600px at 80% -10%, rgba(34,211,238,.08), transparent),radial-gradient(900px 500px at -10% 110%, rgba(99,102,241,.08), transparent),var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial; display:grid; place-items:center; padding:20px}
+
+  .app{ width:100%; max-width:900px; display:grid; gap:14px }
+  .card{ background:rgba(11,18,32,.75); backdrop-filter:blur(8px); border:2px solid #1f2937; border-radius:16px; box-shadow:0 16px 40px rgba(0,0,0,.35); padding:16px }
+  .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+  h1{margin:0; font-size:clamp(1.2rem,2vw+1rem,1.8rem); color:var(--accent); text-shadow:0 2px 0 #000 }
+  p{margin:.25rem 0; color:var(--muted)}
+  .btn{ cursor:pointer; border:3px solid #0ea5e9; color:#e2f6ff; background:#0b1220; border-radius:12px; padding:8px 12px; font-weight:700 }
+  .btn:hover{ transform:translateY(-1px) }
+  .btn.primary{ background:linear-gradient(180deg, rgba(34,211,238,.25), rgba(34,211,238,.05)); }
+  .select{ background:#0b1220; border:2px solid #334155; color:var(--ink); border-radius:12px; padding:8px 10px; font-weight:600 }
+  .toggle{ display:flex; align-items:center; gap:6px; padding:6px 10px; border:2px solid #334155; border-radius:999px; background:#0b1220; font-weight:700 }
+
+  /* Board */
+  .board{ position:relative; width:100%; aspect-ratio: 16/9; border-radius:16px; overflow:hidden; border:3px solid #0ea5e9; background:#0a0f1a }
+  .zone{ position:absolute; border:3px dashed rgba(148,163,184,.55); border-radius:12px; padding:8px 10px; color:#dbeafe; font-size:.9rem; background:rgba(15,23,42,.35); backdrop-filter:blur(2px); outline:4px solid rgba(2,132,199,.15); display:flex; flex-direction:column; gap:6px }
+  .zone .title{ display:block; font-weight:900; color:#fff; margin-bottom:2px; text-shadow:0 1px 0 #000 }
+  .opts{ display:none; flex-direction:column; gap:6px } .zone.open .opts{ display:flex } .zone{ cursor:pointer }
+  .opt{ text-align:left; background:#0b1220; color:#e5e7eb; border:2px solid #334155; border-radius:10px; padding:6px 8px; cursor:pointer; font-weight:700; box-shadow:0 4px 10px rgba(0,0,0,.25) }
+  .opt:hover{ border-color:#60a5fa }
+  .opt.bad{ border-color:#ef4444 }
+  .opt.good{ border-color:#10b981 }
+
+  /* Cartoon Steve */
+  .steve{ position:absolute; width:56px; height:56px; display:grid; place-items:center; cursor:pointer; border-radius:50%; box-shadow:0 8px 18px rgba(34,211,238,.35) }
+  .spark{ position:absolute; pointer-events:none; font-size:22px; animation: pop .9s ease-out forwards }
+  @keyframes pop{ 0%{ transform:scale(.6); opacity:.0 } 20%{ opacity:1 } 100%{ transform:scale(1.6) translateY(-12px); opacity:0 } }
+
+  .hud{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+  .pill{ padding:6px 10px; border:2px solid #334155; border-radius:999px; background:#0b1220; color:#cbd5e1; font-weight:700 }
+  .pulse{ box-shadow:0 0 0 4px rgba(34,211,238,.25), 0 0 24px rgba(34,211,238,.35) }
+
+  /* Toast blague – FIXÉ AU PREMIER PLAN & PLUS LONG */
+  .toast{ position:fixed; left:50%; top:10px; transform:translateX(-50%); background:#111827; color:#e5e7eb; border:2px solid #334155; border-radius:12px; padding:12px 16px; font-weight:700; box-shadow:0 8px 18px rgba(0,0,0,.35); opacity:0; pointer-events:none; z-index:9999 }
+  .toast.show{ animation: toast 4.8s ease-out forwards }
+  @keyframes toast{ 0%{opacity:0; transform:translate(-50%,-12px)} 15%{opacity:1; transform:translate(-50%,0)} 80%{opacity:1} 100%{opacity:0; transform:translate(-50%,-8px)} }
+
+  /* Secousse */
+  .shake{ animation: shake 0.4s linear }
+  @keyframes shake{ 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+
+  /* Bulle de Steve */
+  .bubble{ position:absolute; transform:translate(-50%,-110%); background:#0b1220; border:2px solid #334155; color:#e5e7eb; padding:6px 10px; border-radius:12px; font-size:.85rem; white-space:nowrap }
+  .bubble::after{ content:""; position:absolute; left:50%; bottom:-8px; transform:translateX(-50%); border:8px solid transparent; border-top-color:#334155 }
+</style>
+
+<style>
+/* === iPhone Mobile Sheet Overlay (v3) === */
+:root { --vh: 1vh; }
+
+@media (max-width: 600px) {
+  /* Lock body scroll when sheet open */
+  body.no-scroll {
+    position: fixed;
+    width: 100%;
+    overflow: hidden;
+    top: var(--scroll-lock-top, 0px);
+  }
+
+  /* Overlay */
+  .sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2,6,23,.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 2147483000;
+    display: none;
+  }
+  .sheet-overlay.show { display: block; }
+
+  /* Bottom sheet */
+  .sheet {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    background: #0b1220;
+    border: 3px solid #60a5fa;
+    border-radius: 16px;
+    box-shadow: 0 16px 40px rgba(0,0,0,.45);
+    max-height: min(70dvh, calc(var(--vh, 1vh) * 70));
+    overflow: auto;
+    -webkit-overflow-scrolling: touch; /* momentum on iOS */
+    padding: 14px;
+    z-index: 2147483001;
+    transform: translateY(6%);
+    opacity: 0;
+    transition: transform .18s ease, opacity .18s ease;
+    touch-action: manipulation;
+  }
+  .sheet.show { transform: translateY(0); opacity: 1; }
+
+  .sheet .sheet-title {
+    display: block;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 1px 0 #000;
+    margin-bottom: 6px;
+    font-size: 1.05rem;
+    padding-right: 44px; /* space for close */
+  }
+
+  .sheet .sheet-close {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    border: 2px solid #334155;
+    border-radius: 10px;
+    background: #0a0f1a;
+    color: #e5e7eb;
+    font-weight: 800;
+    padding: 6px 10px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .sheet .opt { font-size: 1rem; padding: 10px 12px; }
+
+  /* Board height uses real viewport */
+  .board { min-height: max(55vh, calc(var(--vh, 1vh) * 55)); aspect-ratio: 3 / 4; }
+}
+
+/* Prevent iOS zoom on small inputs */
+.select, .btn, .toggle { font-size: 16px; }
+</style>
+
+
+<style>
+/* === v4 iPhone anti-overlap layout overrides === */
+@media (max-width: 600px) {
+  /* Board becomes a wrapping flex container */
+  .board {
+    aspect-ratio: auto !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    align-content: flex-start !important;
+    gap: 10px !important;
+    height: auto !important;
+    min-height: auto !important;
+    padding: 10px 8px 24px !important;
+    position: relative !important;
+  }
+
+  /* Rows should not impose fixed layout */
+  .row {
+    width: 100% !important;
+    display: contents !important; /* flatten rows so zones wrap naturally */
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+
+  /* Make each zone a normal flow card */
+  .zone {
+    position: static !important;
+    top: auto !important; left: auto !important; right: auto !important; bottom: auto !important;
+    height: auto !important;
+    min-height: 120px !important;
+    flex: 1 1 45% !important;
+    max-width: 45% !important;
+    min-width: 140px !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+  }
+
+  /* Extra narrow screens → single column */
+  @media (max-width: 400px) {
+    .zone {
+      flex-basis: 100% !important;
+      max-width: 100% !important;
+    }
+  }
+
+  /* Ensure inner elements don't overflow */
+  .zone .opts {
+    max-width: 100% !important;
+  }
+}
+</style>
+
+</head>
+<body>
+  <main class="app">
+    <header class="card">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <h1>🕵️ Où est Steve ?</h1>
+          <p>Trouve Steve dans son lieu de travail. <b>NOUVEAU :</b> gags, blagues et petites secousses pour pimenter la chasse ! Choisis une activité « hors boulot » : si c'est la bonne, <u>Steve apparaît</u> et sort une vanne 🤭</p>
+        </div>
+        <div class="row">
+          <label>Scène :</label>
+          <select id="scene" class="select"></select>
+          <label class="toggle"><input type="checkbox" id="soundToggle">🔊 Sons</label>
+          <label class="toggle"><input type="checkbox" id="chaosToggle">🤪 Mode Chaos</label>
+          <button id="newRound" class="btn primary">🔄 Nouvelle manche</button>
+          <button id="hintBtn" class="btn" title="Donner un indice">🔍 Indice +</button>
+        </div>
+      </div>
+      <div class="hud" style="margin-top:8px">
+        <span class="pill">⏱️ Temps : <b id="time">0.0s</b></span>
+        <span class="pill">👆 Clics : <b id="clicks">0</b></span>
+        <span class="pill">🏆 Meilleur : <b id="best">–</b></span>
+        <span class="pill">🎯 Indice : <b id="hint">—</b></span>
+        <span class="pill">😂 Vannes : <b id="gagsCount">0</b></span>
+      </div>
+    </header>
+
+    <section class="card">
+      <div id="board" class="board" aria-label="Plateau de jeu"></div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin:0 0 6px">Règle du jeu</h3>
+      <div class="card" style="padding:10px">Lis l'indice puis <b>clique directement sur un des choix</b> à l'intérieur des cases du plan. Si c'est la bonne, <b>Steve apparaît</b> et te balance une blague. (Astuce : tape « STEVE » au clavier 😉)</div>
+    </section>
+  </main>
+
+  <!-- Toast fixé hors du board pour rester visible -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+  // --- Scènes et zones (base d'origine) ---
+  const SCENES = [
+    { id:'atelier', name:'Atelier Tradis', colors:['#0ea5e9','#22c55e','#f59e0b','#ef4444'], bg:'#081225',
+      zones:[
+        {x:2,y:4,w:33,h:44,title:'Presses',off:['raconte une blague','regarde son téléphone','fait des ricochets de boulons']},
+        {x:37,y:6,w:28,h:36,title:'Pont roulant',off:['papote avec le cariste','improvise un mini-jeu','fait des grands signes']},
+        {x:67,y:5,w:31,h:46,title:'Découpe',off:['dessine un smiley à la craie','regarde des memes','range sans se presser']},
+        {x:5,y:52,w:38,h:42,title:'Magasin',off:['discute du match','classe des vis pour passer le temps','scrolle sur son téléphone']},
+        {x:46,y:52,w:50,h:42,title:'Quai',off:['prend un long café','regarde les nuages','parle météo avec la logistique']}
+      ] },
+    { id:'bureaux', name:"Bureau d'étude", colors:['#a78bfa','#60a5fa','#34d399','#f97316'], bg:'#0a1022',
+      zones:[
+        {x:2,y:4,w:30,h:44,title:'Postes',off:['change le fond d’écran','lit des blagues Slack','range ses crayons']},
+        {x:34,y:6,w:32,h:36,title:'Réunion',off:['dessine sur le tableau','plie des avions en papier','improvise un débat inutile']},
+        {x:68,y:6,w:30,h:36,title:'Imprimantes',off:['lance une impression test','colle un autocollant','fait semblant de dépanner']},
+        {x:5,y:52,w:40,h:42,title:'Cafétéria',off:['fait un énième café','discute vacances','grignote des biscuits']},
+        {x:47,y:52,w:51,h:42,title:'Couloir',off:['papote en passant','lit les affiches','traîne près des fenêtres']}
+      ] },
+    { id:'atelier2', name:'Atelier fermette&MOB', colors:['#22d3ee','#f472b6','#fbbf24','#4ade80'], bg:'#07101c',
+      zones:[
+        {x:3,y:5,w:33,h:45,title:'Presses',off:['fait tourner le minuteur “pause”','discute outillage','fait des mimiques']},
+        {x:38,y:6,w:28,h:36,title:'Pont roulant',off:['fait des signaux en rigolant','parle avec l’ami du quai','prend la pose de chef']},
+        {x:68,y:7,w:30,h:35,title:'Découpe',off:['aligne des chutes','regarde les autres bosser','dessine un plan farfelu']},
+        {x:6,y:52,w:37,h:42,title:'Magasin',off:['compte des boîtes pour rien','compare des étiquettes','discutaille avec le magasinier']},
+        {x:45,y:52,w:52,h:42,title:'Quai',off:['papote avec le chauffeur','sirote un café','regarde les chariots passer']}
+      ] }
+  ];
+
+  const GAGS = [
+    "J'étais en pleine réunion… avec ma tasse ☕.",
+    "Je ne procrastine pas, je fais du R&D : Rêve & Détente.",
+    "J'aide la productivité… en restant hors du chemin.",
+    "Oops, pas là. Mais bel effort, champion·ne !",
+    "Si tu me trouves, j'offre un donut imaginaire.",
+    "Chaussures de sécu ? Toujours. Motivation ? En rupture de stock.",
+    "On m'appelle StevEuh… parce que je fais des arrêts.",
+  ];
+
+  const FAIL_EMOJIS = ["💥","🫠","🧯","🦥","🤹","🪫","🙈","🌀"]; // pour le mode Chaos
+
+  const board = document.getElementById('board');
+  const sceneSel = document.getElementById('scene');
+  const timeEl = document.getElementById('time');
+  const clicksEl = document.getElementById('clicks');
+  const bestEl = document.getElementById('best');
+  const hintEl = document.getElementById('hint');
+  const gagsCountEl = document.getElementById('gagsCount');
+  const newRoundBtn = document.getElementById('newRound');
+  const toast = document.getElementById('toast');
+  const soundToggle = document.getElementById('soundToggle');
+  const chaosToggle = document.getElementById('chaosToggle');
+
+  let start=0, clicks=0, timerId=null, best=localStorage.getItem('steve_best')||null;
+  if(best) bestEl.textContent = best+'s';
+
+  // Audio minimal (WebAudio, pas de fichier externe)
+  let ctx=null; function beep(type='sine', duration=0.12, freq=660){
+    if(!soundToggle.checked) return;
+    ctx = ctx || new (window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator(); const g=ctx.createGain();
+    o.type=type; o.frequency.value=freq; g.gain.value=.001; g.gain.exponentialRampToValueAtTime(.3, ctx.currentTime+.01);
+    o.connect(g).connect(ctx.destination); o.start();
+    g.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime+duration);
+    o.stop(ctx.currentTime+duration+0.02);
+  }
+
+  function rnd(a,b){ return Math.random()*(b-a)+a; }
+  function clear(node){ while(node.firstChild) node.removeChild(node.firstChild); }
+
+  function svgSteve(scale=1){
+    const ns='http://www.w3.org/2000/svg';
+    const svg=document.createElementNS(ns,'svg'); svg.setAttribute('viewBox','0 0 100 100'); svg.setAttribute('width', String(56*scale)); svg.setAttribute('height', String(56*scale));
+    const bg=document.createElementNS(ns,'circle'); bg.setAttribute('cx','50'); bg.setAttribute('cy','50'); bg.setAttribute('r','48'); bg.setAttribute('fill','#0ea5e9'); bg.setAttribute('stroke','#022c3a'); bg.setAttribute('stroke-width','6'); svg.appendChild(bg);
+    const head=document.createElementNS(ns,'circle'); head.setAttribute('cx','50'); head.setAttribute('cy','45'); head.setAttribute('r','26'); head.setAttribute('fill','#fde68a'); head.setAttribute('stroke','#78350f'); head.setAttribute('stroke-width','4'); svg.appendChild(head);
+    const eye1=document.createElementNS(ns,'circle'); eye1.setAttribute('cx','40'); eye1.setAttribute('cy','43'); eye1.setAttribute('r','4'); eye1.setAttribute('fill','#111827'); svg.appendChild(eye1);
+    const eye2=document.createElementNS(ns,'circle'); eye2.setAttribute('cx','58'); eye2.setAttribute('cy','41'); eye2.setAttribute('r','4.5'); eye2.setAttribute('fill','#111827'); svg.appendChild(eye2);
+    const shine1=document.createElementNS(ns,'circle'); shine1.setAttribute('cx','39'); shine1.setAttribute('cy','42'); shine1.setAttribute('r','1.3'); shine1.setAttribute('fill','#fff'); svg.appendChild(shine1);
+    const shine2=document.createElementNS(ns,'circle'); shine2.setAttribute('cx','57'); shine2.setAttribute('cy','40'); shine2.setAttribute('r','1.3'); svg.appendChild(shine2);
+    const mouth=document.createElementNS(ns,'path'); mouth.setAttribute('d','M38 57 Q50 63 62 57'); mouth.setAttribute('stroke','#7c2d12'); mouth.setAttribute('stroke-width','3'); mouth.setAttribute('fill','none'); svg.appendChild(mouth);
+    const beard=document.createElementNS(ns,'path'); beard.setAttribute('d','M24 56 Q50 90 76 56 L76 48 Q50 70 24 48 Z'); beard.setAttribute('fill','#111827'); beard.setAttribute('stroke','#0f172a'); beard.setAttribute('stroke-width','3'); svg.appendChild(beard);
+    const hair=document.createElementNS(ns,'path'); hair.setAttribute('d','M30 28 Q50 18 70 28'); hair.setAttribute('stroke','#111827'); hair.setAttribute('stroke-width','4'); hair.setAttribute('fill','none'); svg.appendChild(hair);
+    return svg;
+  }
+
+  function cartoonBackground(scene){
+    const ns='http://www.w3.org/2000/svg';
+    const svg=document.createElementNS(ns,'svg'); svg.setAttribute('width','100%'); svg.setAttribute('height','100%'); svg.setAttribute('viewBox','0 0 1600 900');
+    const rect=document.createElementNS(ns,'rect'); rect.setAttribute('x','0'); rect.setAttribute('y','0'); rect.setAttribute('width','1600'); rect.setAttribute('height','900'); rect.setAttribute('fill',scene.bg); svg.appendChild(rect);
+    const colors=scene.colors;
+    for(let i=0;i<14;i++){
+      const r=document.createElementNS(ns,'rect'); r.setAttribute('x', String(Math.random()*1500)); r.setAttribute('y', String(Math.random()*820)); r.setAttribute('width', String(40+Math.random()*140)); r.setAttribute('height', String(18+Math.random()*34)); r.setAttribute('rx','10'); r.setAttribute('ry','10'); r.setAttribute('fill', colors[i%colors.length]); r.setAttribute('opacity','0.12'); r.setAttribute('stroke','#020617'); r.setAttribute('stroke-width','6'); svg.appendChild(r);
+    }
+    return svg;
+  }
+
+  let targetZone=null, targetActivity=null, steveEl=null, zoneElements=new Map(); let hintIndex=0, hints=[]; let gagsCount=0; let failClicks=0;
+
+  function startRound(){
+    clicks=0; clicksEl.textContent='0'; steveEl=null; failClicks=0;
+    if(timerId) cancelAnimationFrame(timerId); timeEl.textContent='0.0s';
+    const scene = SCENES.find(s=>s.id===sceneSel.value)||SCENES[0];
+
+    // Tirage de la zone et d'une activité "hors boulot"
+    targetZone = scene.zones[Math.floor(Math.random()*scene.zones.length)];
+    targetActivity = targetZone.off[Math.floor(Math.random()*targetZone.off.length)];
+
+    // HUD + timer (indices)
+    buildHints(targetZone);
+    hintIndex = 0;
+    hintEl.textContent = 'Indice : (clique sur 🔍 pour dévoiler)';
+    start = performance.now();
+    function tick(t){ timeEl.textContent=((t-start)/1000).toFixed(1)+'s'; timerId=requestAnimationFrame(tick); }
+    timerId=requestAnimationFrame(tick);
+
+    // Plateau
+    clear(board); board.appendChild(cartoonBackground(scene)); // NE PAS ré-attacher le toast au board !
+
+    // pluie d'emojis démarrage
+    rain(["✨","🎈","🧃","🛠️","🧷"], 12, 700);
+
+    // Dessine les zones
+    zoneElements = new Map();
+    scene.zones.forEach(z=>{
+      const el=document.createElement('div'); el.className='zone';
+      el.style.left=z.x+'%'; el.style.top=z.y+'%'; el.style.width=z.w+'%'; el.style.height=z.h+'%';
+      const title=document.createElement('span'); title.className='title'; title.textContent=z.title; el.appendChild(title);
+      const opts=document.createElement('div'); opts.className='opts';
+      const tip=document.createElement('div'); tip.style.fontSize='.8rem'; tip.style.color='#93a4b8'; tip.textContent='(cliquer pour afficher les choix)'; el.appendChild(tip);
+      z.off.forEach(txt=>{
+        const b=document.createElement('button'); b.type='button'; b.className='opt'; b.textContent='• '+txt;
+        b.addEventListener('click', (ev)=>{ ev.stopPropagation(); onChoice(z, txt===targetActivity, b, el); });
+        opts.appendChild(b);
+      });
+      el.appendChild(opts); board.appendChild(el);
+      el.addEventListener('click', (e)=>{
+        if(e.target.closest('.opt')) return;
+        document.querySelectorAll('.zone.open').forEach(n=>{ if(n!==el) n.classList.remove('open'); });
+        el.classList.toggle('open');
+      });
+      zoneElements.set(z, el);
+    });
+  }
+
+  function onChoice(zone, isCorrect, btn, zoneEl){
+    clicks++; clicksEl.textContent=String(clicks);
+    btn.style.transform='scale(0.98)'; setTimeout(()=>btn.style.transform='',120);
+    if(isCorrect){
+      btn.classList.add('good'); zoneEl.style.outline='4px solid #10b981';
+      spawnSteve(zone);
+      say(GAGS[Math.floor(Math.random()*GAGS.length)]);
+      hintEl.textContent='✅ Bien vu ! Clique sur Steve pour valider.';
+      beep('triangle', .08, 880);
+    } else {
+      btn.classList.add('bad'); setTimeout(()=>btn.classList.remove('bad'), 600);
+      failClicks++;
+      toastIt(randomMiss());
+      board.classList.add('shake'); setTimeout(()=>board.classList.remove('shake'), 420);
+      if(chaosToggle.checked){ rain(FAIL_EMOJIS, 8, 600); }
+      if(failClicks===3){ // petit coup de pouce
+        pulseAmbiguous();
+        say("Indice turbo activé ✨");
+      }
+      hintEl.textContent='❌ Mauvais choix. Essaie un autre.';
+      beep('sawtooth', .1, 180);
+    }
+  }
+
+  function spawnSteve(z){
+    if(steveEl) return;
+    const steve=document.createElement('div'); steve.className='steve';
+    const sx = z.x + Math.random()*(z.w-7) + 3.5; const sy = z.y + Math.random()*(z.h-9) + 4.5;
+    steve.style.left=sx+'%'; steve.style.top=sy+'%'; steve.appendChild(svgSteve(1));
+    steve.addEventListener('click', ()=> win(z, steve));
+    board.appendChild(steve); steveEl=steve;
+    bubble(steve, "Coucou ! ✋");
+  }
+
+  function win(zone, steve){
+    if(timerId){ cancelAnimationFrame(timerId); timerId=null; }
+    const elapsed = parseFloat(timeEl.textContent);
+    hintEl.textContent = `🎉 Bravo ! Steve flânait dans « ${zone.title} ». Temps : ${elapsed}s, clics : ${clicks}.`;
+    const prev = localStorage.getItem('steve_best'); if(!prev || elapsed < parseFloat(prev)){ localStorage.setItem('steve_best', elapsed.toFixed(1)); bestEl.textContent = elapsed.toFixed(1)+'s'; }
+    for(let i=0;i<14;i++){ const sp=document.createElement('div'); sp.className='spark'; sp.textContent='✨'; sp.style.left=rnd(20, board.clientWidth-20)+'px'; sp.style.top=rnd(20, board.clientHeight-20)+'px'; board.appendChild(sp); setTimeout(()=>sp.remove(), 900); }
+    say("Victoire ! On remballe ?");
+    beep('square', .12, 660);
+    steve.animate([{transform:'translateY(0)'},{transform:'translateY(-10px)'},{transform:'translateY(0)'}],{duration:450});
+  }
+
+  newRoundBtn.addEventListener('click', startRound);
+  sceneSel.addEventListener('change', startRound);
+  document.getElementById('hintBtn').addEventListener('click', showNextHint);
+  document.addEventListener('keydown', onKey);
+
+  // init select
+  if(sceneSel.options.length===0){ SCENES.forEach(s=>{ const o=document.createElement('option'); o.value=s.id; o.textContent=s.name; sceneSel.appendChild(o); }); }
+  sceneSel.value = SCENES[0].id; startRound();
+
+  // Indices plus rigolos
+  function buildHints(z){
+    hints=[];
+    const cx=z.x+z.w/2, cy=z.y+z.h/2;
+    const side  = cx<40? 'côté gauche comme une baguette timide 🥖' : cx>60? 'côté droit comme une vis bien serrée 🔩' : 'pile au centre, là où les ragots résonnent 📣';
+    const level = cy<40? 'ni tout en bas, ça fait mal au dos 🧘' : cy>60? 'ni tout en haut, l’échelle est rangée 🪜' : 'au milieu, comme la mousse du café ☕';
+    const jokesByTitle = {
+      'Presses':      'là où tout plie… sauf la volonté de Steve 💪',
+      'Pont roulant': 'au royaume des trucs qui volent sans ailes 🏗️',
+      'Découpe':      'l’endroit où on retire un peu pour que ça rentre ✂️',
+      'Magasin':      'le pays des étiquettes qui jugent en silence 🏷️',
+      'Quai':         'le carrefour des au‑revoir qui bipent 📦',
+      'Postes':       'la savane des claviers qui claquent 🧑‍💻',
+      'Réunion':      'l’arène des “on en reparle” 🗣️',
+      'Imprimantes':  'le temple du bourrage surprise 🖨️',
+      'Cafétéria':    'le QG des “une dernière et j’y retourne” ☕',
+      'Couloir':      'l’autoroute des “t’as 2 minutes ?” 🚶'
+    };
+    const line1 = `Orientation : ${side}, ${level}.`;
+    const line2 = jokesByTitle[z.title] || 'un coin mystérieux mais convivial 🤝';
+    const line3 = `Son nom commence par ${'AEIOUYÀÂÄÉÈÊËÎÏÔÖÙÛÜaeiouyàâäéèêëîïôöùûü'.includes(z.title[0])? 'une voyelle' : 'une consonne'} et compte ${z.title.length} lettres 🔤.`;
+    const spice = [
+      'Si tu entends « Whoosh », t’es pas loin 💨.',
+      'Cherche le parfum « huile + café » 🛢️☕.',
+      'Indice scientifique : Steve suit la loi de la flemme maximale 🧪.',
+      'Astuce pro : vise là où on papote le plus 🗯️.'
+    ];
+    hints.push(line1, line2, line3, spice[(Math.random()*spice.length)|0]);
+  }
+  function showNextHint(){
+    if(!targetZone) return;
+    if(hintIndex < hints.length){
+      hintEl.textContent = 'Indice : ' + hints[hintIndex];
+      if(hintIndex === 2){ pulseAmbiguous(); }
+      hintIndex++;
+      beep('sine', .06, 520);
+    } else {
+      hintEl.textContent = 'Plus d\'indices 😉';
+    }
+  }
+
+  // --- Nouveautés fun ---
+  function toastIt(txt){
+    toast.textContent = txt;
+    toast.style.animationDuration = '4.8s';
+    toast.classList.remove('show'); void toast.offsetWidth; toast.classList.add('show');
+  }
+  function randomMiss(){
+    const lines=[
+      "Aïe ! C\'était un plot de chantier.",
+      "Presque ! Steve vient d\'aller se cacher ailleurs.",
+      "Tu chauffes… comme une cafetière oubliée.",
+      "Nope. Steve est en pause syndicale.",
+    ];
+    return lines[(Math.random()*lines.length)|0];
+  }
+  function say(txt){ gagsCount++; gagsCountEl.textContent = gagsCount; toastIt('Steve : '+txt); }
+  function bubble(anchor, text){
+    const b=document.createElement('div'); b.className='bubble'; b.textContent=text; anchor.appendChild(b); setTimeout(()=>b.remove(), 1300);
+  }
+  function pulseAmbiguous(){
+    const good = zoneElements.get(targetZone);
+    if(good){ good.classList.add('pulse'); setTimeout(()=>good.classList.remove('pulse'), 1300); }
+    const others = Array.from(zoneElements.keys()).filter(z=>z!==targetZone);
+    if(others.length){ const decoy = others[(Math.random()*others.length)|0]; const el=zoneElements.get(decoy); if(el){ el.classList.add('pulse'); setTimeout(()=>el.classList.remove('pulse'), 900); } }
+  }
+  function rain(symbols, count=10, duration=700){
+    for(let i=0;i<count;i++){
+      const sp=document.createElement('div'); sp.className='spark'; sp.textContent=symbols[i%symbols.length];
+      sp.style.left=rnd(20, board.clientWidth-20)+'px'; sp.style.top=rnd(0, board.clientHeight*0.3)+'px';
+      board.appendChild(sp); setTimeout(()=>sp.remove(), duration);
+    }
+  }
+  function onKey(e){
+    const code = (onKey._code || '');
+    const next = (code + e.key.toUpperCase()).slice(-5);
+    onKey._code = next;
+    if(next === 'STEVE'){
+      say('Chut, code secret 🤫');
+      pulseAmbiguous();
+      beep('triangle', .08, 720);
+    }
+  }
+  </script>
+
+<!-- iPhone Mobile Sheet Overlay (v3) -->
+<div class="sheet-overlay" id="sheetOverlay" aria-hidden="true"></div>
+<div class="sheet" id="sheet" aria-modal="true" role="dialog" hidden>
+  <button class="sheet-close" id="sheetClose" type="button" aria-label="Fermer">✕</button>
+  <span class="sheet-title" id="sheetTitle"></span>
+  <div class="sheet-content" id="sheetContent"></div>
+</div>
+
+
+<script>
+// === iPhone-specific improvements (v3) ===
+(function(){
+  // 1) Fix 100vh on iOS using --vh variable
+  function setVH(){
+    document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01) + 'px');
+  }
+  setVH();
+  window.addEventListener('resize', setVH);
+  window.addEventListener('orientationchange', setVH);
+
+  function isMobile(){ return window.innerWidth <= 600; }
+
+  const overlay = document.getElementById('sheetOverlay');
+  const sheet   = document.getElementById('sheet');
+  const titleEl = document.getElementById('sheetTitle');
+  const content = document.getElementById('sheetContent');
+  const closeBtn= document.getElementById('sheetClose');
+
+  if(!overlay || !sheet || !titleEl || !content || !closeBtn){ return; }
+
+  let currentZone = null;
+  let placeholder = null;
+  let savedScrollY = 0;
+
+  function lockScroll(){
+    savedScrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.style.setProperty('--scroll-lock-top', (-savedScrollY) + 'px');
+    document.body.classList.add('no-scroll');
+  }
+  function unlockScroll(){
+    document.body.classList.remove('no-scroll');
+    window.scrollTo(0, savedScrollY);
+  }
+
+  function openSheetForZone(zone){
+    const titleNode = zone.querySelector('.title');
+    const optsNode = zone.querySelector('.opts');
+    if(!optsNode){ return; }
+
+    // Placeholder to restore later
+    placeholder = document.createElement('div');
+    placeholder.style.display = 'none';
+    optsNode.parentNode.insertBefore(placeholder, optsNode);
+
+    content.innerHTML = '';
+    content.appendChild(optsNode);
+    titleEl.textContent = titleNode ? titleNode.textContent : 'Options';
+
+    overlay.classList.add('show');
+    overlay.setAttribute('aria-hidden', 'false');
+    sheet.hidden = false;
+    requestAnimationFrame(function(){
+      sheet.classList.add('show');
+    });
+
+    lockScroll();
+    currentZone = zone;
+  }
+
+  function closeSheet(){
+    if(!currentZone){ return; }
+    const optsNode = content.querySelector('.opts');
+    if(optsNode && placeholder && placeholder.parentNode){
+      placeholder.parentNode.insertBefore(optsNode, placeholder);
+      placeholder.remove();
+    }
+    placeholder = null;
+    currentZone = null;
+
+    sheet.classList.remove('show');
+    setTimeout(function(){
+      sheet.hidden = true;
+      overlay.classList.remove('show');
+      overlay.setAttribute('aria-hidden', 'true');
+      unlockScroll();
+    }, 180);
+  }
+
+  // Use pointer events for iOS; fall back to click
+  const ACTIVE_EVT = window.PointerEvent ? 'pointerup' : 'click';
+
+  document.addEventListener(ACTIVE_EVT, function(e){
+    if(!isMobile()) return;
+    const zone = e.target.closest && e.target.closest('.zone');
+    if(!zone) return;
+
+    const isOpt = e.target.closest && e.target.closest('.opt');
+    if(isOpt) return; // let options work normally
+
+    // Prevent default scrolling/tap delay
+    e.preventDefault();
+
+    document.querySelectorAll('.zone.open').forEach(function(n){ n.classList.remove('open'); });
+    zone.classList.add('open');
+    openSheetForZone(zone);
+  }, true);
+
+  overlay.addEventListener(ACTIVE_EVT, function(){ closeSheet(); });
+  closeBtn.addEventListener(ACTIVE_EVT, function(){ closeSheet(); });
+
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){ closeSheet(); }
+  }, true);
+})();
+</script>
+
+</body>
+</html>
